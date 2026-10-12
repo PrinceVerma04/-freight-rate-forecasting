@@ -10,7 +10,7 @@ The headline findings (all verified below):
   * the "too long" distances are NOT corrupted - they are 70-mile-floor loads
     between cities whose synthetic coordinates are almost identical;
   * prices follow market_index only weakly (elasticity ~0.14) and have a
-    calendar pattern market_index does not explain: a ~4.5% ramp through every
+    calendar pattern market_index does not explain: a ~4% ramp through every
     quarter-end month plus an upward drift over the year;
   * quote_signal changes "regime" from month to month, and Nov/Dec look like
     August, the one month where it has no relationship with price;
@@ -21,7 +21,7 @@ The headline findings (all verified below):
 import numpy as np
 import pandas as pd
 
-from src import plotting
+from src import config, plotting
 from src.data_cleaning import clean_features, fit_cleaning_stats, flag_corrupted_targets, haversine_miles
 from src.features import FeatureBuilder, city_coordinates_from_rows
 
@@ -58,8 +58,8 @@ def describe_raw_data(train, validation):
     for name, df in [("train", train), ("validation", validation)]:
         weight = df["weight"]
         n_negative = int((weight < 0).sum())
-        n_capped = int((weight.abs() == 47_500).sum())
-        n_floor = int((weight.abs() == 5_000).sum())
+        n_capped = int((weight.abs() == config.WEIGHT_CAP_LBS).sum())
+        n_floor = int((weight.abs() == config.WEIGHT_FLOOR_LBS).sum())
         n_missing = int(weight.isna().sum())
         facts[f"{name}_weight"] = {"negative": n_negative, "capped": n_capped, "floor": n_floor, "missing": n_missing}
         print(f"    - weight ({name}): {n_missing} missing, {n_negative} negative, {n_capped:,} at the "
@@ -110,7 +110,7 @@ def build_eda_figures(train, validation, facts):
 
     # 1) Corrupted labels -------------------------------------------------------
     paths.append(plotting.plot_target_ratio_histogram(train_clean["target_ratio"].to_numpy(),
-                                                      low=0.6, high=1.8))
+                                                      low=config.CORRUPT_RATIO_LOW, high=config.CORRUPT_RATIO_HIGH))
 
     # 2) Daily price level vs the reference price ----------------------------------
     clean = train_clean[train_clean["target_is_corrupt"] == 0]

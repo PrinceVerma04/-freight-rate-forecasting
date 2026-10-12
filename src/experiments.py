@@ -434,9 +434,14 @@ def run_experiments(train_raw, fast=False):
         tuning = config.FAST_MODE_TUNING
         if tuning:
             base = log.results[tuning["base"]].spec
-            label = ", ".join(f"{key}={value}" for key, value in tuning["params"].items())
-            tuned = base.but(name=f"{base.name} | {label}", params={**base.params, **tuning["params"]},
+            tuned_groups = tuning.get("feature_groups", base.feature_groups)
+            # Name the variant the same way the full run does, e.g.
+            # "G_ridge_then_lightgbm | without city_level | max_bin=1023".
+            name_parts = [base.name] + [f"without {g}" for g in base.feature_groups if g not in tuned_groups]
+            name_parts.append(", ".join(f"{key}={value}" for key, value in tuning["params"].items()))
+            tuned = base.but(name=" | ".join(name_parts), params={**base.params, **tuning["params"]},
                              target_kind=tuning.get("target_kind", base.target_kind),
+                             feature_groups=tuned_groups,
                              description=f"{base.description}; settings from the last full run")
             log.run(tuned, stage="4d tuning (from config)")
             candidates.append(tuned.name)

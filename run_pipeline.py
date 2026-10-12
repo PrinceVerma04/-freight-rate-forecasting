@@ -1,9 +1,9 @@
 """
 Run the whole freight-rate pipeline end-to-end with ONE command:
 
-    python run_pipeline.py           # full run: every experiment (~70 minutes on a 4-core laptop)
-    python run_pipeline.py --fast    # quick run (~10 minutes): re-uses the feature set and
-                                     # settings stored in config.py
+    python run_pipeline.py           # full run: every experiment (~45 minutes on a 4-core laptop)
+    python run_pipeline.py --fast    # quick run (~10 minutes): rebuilds the same final model from
+                                     # the choices of the last full run, stored in config.py
 
 Phases
   0    Explore the data           -> facts + figures in reports/figures/

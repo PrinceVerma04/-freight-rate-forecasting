@@ -57,7 +57,7 @@ FEATURE_GROUPS = {
     # misleads the trees when the market hits levels rarely seen in training.
     "market_interactions": ["market_x_distance", "market_x_reefer", "market_x_flatbed"],
 
-    # Prices climb ~4.5% through the last month of every quarter and reset
+    # Prices climb ~4% through the last month of every quarter and reset
     # when the next quarter starts (found in EDA; NOT explained by market_index).
     "quarter_end": ["is_quarter_end_month", "quarter_end_progress"],
 
@@ -376,7 +376,7 @@ class FeatureBuilder:
         # month-specific pattern for Nov/Dec can never be learned, and one partial
         # year holds no repeated seasonality. Instead we use features whose values
         # DO occur in training:
-        #   * quarter_end_progress: EDA showed prices climb ~4.5% through the last
+        #   * quarter_end_progress: EDA showed prices climb ~4% through the last
         #     month of every quarter (Mar, Jun, Sep) and reset afterwards.
         #     December is also a quarter-end month, so the pattern carries over.
         #   * months_since_start: the overall price level drifted up during 2025.

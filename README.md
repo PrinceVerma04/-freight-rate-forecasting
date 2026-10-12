@@ -4,6 +4,10 @@ Predict the price of a truck load (`posted_rate`, USD) for 12,000 future loads (
 learning from 48,000 labelled loads (Jan-Oct 2025). One command runs the whole pipeline, from the
 raw CSV files to the submission file and the scorer's December chart.
 
+**Final model:** Ridge regression on log(price), followed by LightGBM trained on Ridge's errors.
+**Accuracy:** an average error of **$31.86 per load (1.36%)** on time-based validation - 66% below a
+simple baseline - and $32.73 (1.39%) when forecasting two months ahead.
+
 ---
 
 ## Start here: the deliverables
@@ -12,7 +16,7 @@ raw CSV files to the submission file and the scorer's December chart.
 |---|---|
 | Validation predictions (`load_id,predicted_rate`, 12,000 rows) | [`validation_predictions.csv`](validation_predictions.csv) |
 | Fixed December chart produced by the provided `score.py` | [`scorer_results/candidate_december.png`](scorer_results/candidate_december.png) |
-| Report: validation approach, data split, results, December chart | [`reports/report.md`](reports/report.md) |
+| Report: validation approach, data split, results, December chart | [`reports/report.pdf`](reports/report.pdf) (also readable on GitHub: [`reports/report.md`](reports/report.md)) |
 | Solution code, dependencies, run instructions | this repository - see [How to run](#how-to-run) |
 | 2-3 minute Loom walkthrough | *link to be added* |
 
@@ -68,13 +72,17 @@ and to the evidence it produced.
 │
 ├── outputs/                     # everything the pipeline produces (except the submission file)
 │   ├── model_comparison.csv     # one row per experiment: mean CV error per fold + holdout
+│   ├── feature_group_importance.csv  # how much the error rises when a feature group is shuffled
 │   ├── cv_fold_details.csv      # every metric, for every experiment, on every fold
 │   ├── run_summary.json         # key numbers of the run (used to write the report)
 │   ├── december_chart_predictions.csv  # filled copy of data/december-chart-inputs.csv
-│   └── final_model.joblib       # the trained final model + fitted cleaning / feature steps
+│   ├── final_model.joblib       # the trained final model + fitted cleaning / feature steps
+│   └── run_log.txt              # full console output of the run that produced these files
 │
 ├── reports/
-│   ├── report.md                # the written report
+│   ├── report.pdf               # the written report (submitted version)
+│   ├── report.docx              # the same report, editable
+│   ├── report.md                # the same report, readable on GitHub
 │   └── figures/                 # every chart used in the report
 │
 ├── scorer_results/
@@ -102,9 +110,9 @@ scikit-learn, LightGBM, CatBoost and joblib. Use `requirements-lock.txt` for the
 **2. Run everything**
 
 ```bash
-python run_pipeline.py          # full run: every experiment (~70 min on a 4-core laptop)
+python run_pipeline.py          # full run: every experiment (~45 min on a 4-core laptop)
 python run_pipeline.py --fast   # ~10 min: skips the feature screen, ablations, tuning and CatBoost,
-                                # and uses the feature set stored in src/config.py
+                                # and rebuilds the same final model from the choices stored in src/config.py
 ```
 
 The pipeline prints a summary after every phase and ends by running the provided scorer:
@@ -140,7 +148,7 @@ labelled data (Jan-Oct), so every check trains on the past and tests on a later 
   Jan-Sep -> Oct. Models are chosen by their mean error over these folds.
 * **A two-month-ahead check** - train Jan-Aug -> test Sep-Oct, to see how the error grows when
   forecasting further ahead.
-* A **random 80/20 split** is computed only for contrast: it looks about 16% better, because random
+* A **random 80/20 split** is computed only for contrast: it looks about 8% better, because random
   test loads share days (and the daily price level) with training loads, which never happens when
   forecasting the future.
 * Every split re-fits its cleaning and feature statistics on its own training rows, so nothing leaks
@@ -152,11 +160,11 @@ median, weights capped at 47,500 lb flagged, missing `market_index` filled with 
 and 677 corrupted prices (1.41%; 0.15-0.5x or 2-6x the expected price) removed from training.
 Suspiciously long distances were checked and turned out to be genuine 70-mile minimum loads.
 
-**3. Features** - distance, geography (coordinates, direction of travel, regions), city and lane
-price levels (target encoding built only from earlier dates, with a nearest-cities estimate for the
-8 cities that appear only in validation), equipment, weight, `market_index`, a quarter-end ramp and
-a time trend. Feature groups that raised the time-based error were dropped: `quote_signal`, market
-interactions, day of week and holidays.
+**3. Features** - distance, geography (coordinates, direction of travel, regions), equipment, weight,
+`market_index`, a quarter-end ramp and a time trend. Feature groups that raised the time-based error
+were dropped: `quote_signal`, market interactions, day of week, holidays, and the target-encoded city
+price levels (city prices follow location, so the coordinates already carry them - this also covers
+the 8 cities that appear only in validation).
 
 **4. Models** - A: a simple reference-price baseline, B: Ridge regression, C: LightGBM,
 D: LightGBM with Huber loss trained on the corrupted rows too, E: CatBoost (full run only),
@@ -164,33 +172,39 @@ F: averages of the best 2-3 models, G: LightGBM that learns the corrections to R
 All work on log(price), so errors are relative. The winner has the lowest mean MAE over the rolling
 folds; results within 0.2% count as a tie, which is broken by MAPE.
 
-**5. Final model** - the winning recipe is retrained on all clean Jan-Oct rows, with the number of
-trees chosen by cross-validation (scaled up for the larger training set), and predicts every
-validation load.
+**5. Final model (G)** - Ridge regression predicts log(price) first, including the 2025 price trend;
+LightGBM then learns only Ridge's errors, without the trend feature, so the trend can be carried into
+Nov-Dec (trees alone can only repeat the last month's level - they missed October, the start of a
+new quarter, by $45-48 per load). It is retrained on all 47,323 clean Jan-Oct loads with 2,330 trees
+(the number chosen by cross-validation, scaled up for the larger training set).
 
 ---
 
-## Results of the run that produced the current files
+## Results
 
-Mean over the 4 rolling folds, on clean labels (lower is better):
+From the full run (`python run_pipeline.py`). Mean error over the 4 rolling monthly folds, on clean
+labels (lower is better):
 
-| Model | CV MAE ($) | CV MAPE | Sep-Oct check MAE ($) |
-|---|---:|---:|---:|
-| A - reference-price baseline | 94.56 | 4.12% | 119.54 |
-| B - Ridge regression | 36.65 | 1.57% | 37.75 |
-| C - LightGBM | 36.20 | 1.57% | 44.61 |
-| D - LightGBM, Huber loss, corrupted rows kept | 38.20 | 1.68% | 46.60 |
-| **F - average of B + C (chosen)** | **33.85** | **1.46%** | **37.90** |
-| F - average of B + C + D | 34.07 | 1.47% | 39.66 |
+| Model | CV MAE ($) | CV MAPE | Oct fold MAE ($) | Sep-Oct check MAE ($) |
+|---|---:|---:|---:|---:|
+| A - reference-price baseline | 94.56 | 4.12% | 87.23 | 119.54 |
+| B - Ridge regression | 36.65 | 1.57% | 37.38 | 37.75 |
+| C - LightGBM | 36.20 | 1.57% | 45.41 | 44.61 |
+| D - LightGBM, Huber loss, corrupted rows kept | 38.20 | 1.68% | 46.05 | 46.60 |
+| E - CatBoost | 36.40 | 1.57% | 47.73 | 44.25 |
+| F - average of G + C | 32.83 | 1.41% | 39.55 | 37.02 |
+| G - Ridge, then LightGBM on Ridge's errors | 32.17 | 1.37% | 35.25 | 32.78 |
+| **G, without city target encoding, `max_bin`=1023 (final)** | **31.86** | **1.36%** | **35.44** | **32.73** |
 
-* The chosen model's error is **64% lower than the baseline**.
-* The random 80/20 split scores an MAE of $31.69, which looks better than the honest $37.90 because
-  of the leakage described above.
-* For loads touching 8 cities removed from training, the MAE is $43.32, against $38.29 for the same
-  loads when those cities were seen in training.
+* The final model's error is **66% lower than the baseline** and 12% lower than plain LightGBM.
+* A random 80/20 split scores $30.28 - it looks better than the honest $32.73 only because of the
+  leakage described above.
+* For loads touching 8 cities removed from training, the error is $38.60 (1.57%), against $33.62
+  (1.36%) for the same loads when those cities were seen.
+* The December chart rises from $834 to $878: a weekly `market_index` cycle plus the quarter-end ramp.
 
-Full numbers: [`outputs/model_comparison.csv`](outputs/model_comparison.csv) and
-[`outputs/run_summary.json`](outputs/run_summary.json).
+Full numbers: [`outputs/model_comparison.csv`](outputs/model_comparison.csv),
+[`outputs/run_summary.json`](outputs/run_summary.json) and the report.
 
 ---
 

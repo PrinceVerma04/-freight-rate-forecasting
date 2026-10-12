@@ -1,0 +1,157 @@
+
+====================================================================================================
+PHASE 0 - EXPLORE THE DATA
+====================================================================================================
+    - train-test.csv : 48,000 rows, 2025-01-01 to 2025-10-31
+    - validation.csv : 12,000 rows, 2025-11-01 to 2025-12-31
+    - cities: 64 in training, 72 in validation, 8 only in validation: Allentown, Charlotte, Chicago, Jackson, Knoxville, Laredo, Norfolk, San Diego
+    - every city has exactly 1 coordinate pair (coordinates are synthetic but consistent)
+    - weight (train): 300 missing, 292 negative, 1,204 at the 47,500 cap, 32 at the 5,000 floor
+    - weight (validation): 165 missing, 145 negative, 301 at the 47,500 cap, 7 at the 5,000 floor
+    - distance: min 70 miles (48 loads at the 70-mile floor); 12 loads are >3x the straight-line distance, and 12 of them are 70-mile-floor loads between cities with almost identical synthetic coordinates; distance vs its lane median ranges 0.76-1.28x -> no corrupted distances
+    - market_index: 374 missing in train, 249 in validation; mean 1.083 (train) vs 0.927 (validation); spread within a day 0.025 vs between days 0.165 -> essentially a daily value
+    - price vs market: elasticity 0.140 (10% higher market_index -> ~1.4% higher price)
+    - calendar: prices rise 3.7% from the start to the end of each quarter-end month (Mar 3.6%, Jun 3.3%, Sep 4.0%); October is 5.6% above Jan-Feb even after market_index
+    - quote_signal: 1%/50%/99% quantiles Aug [1.53 2.05 2.55], Nov-Dec [1.54 2.05 2.56]; correlation with price (vs reference) in August = -0.008
+    - city price levels range -3.4% to +2.8% (cheapest Syracuse, priciest Oklahoma City)
+    - saved 4 figures to reports/figures/
+
+====================================================================================================
+PHASE 1 - DATA CLEANING (statistics learned from train-test.csv, applied to both files)
+====================================================================================================
+  Training file + validation file, in that order:
+    - weight: 292 negative values made positive (sign-flip errors)
+    - weight: 1,204 loads flagged as capped at 47,500 lbs
+    - weight: 300 missing values filled with the training median of their equipment type
+    - distance: 0 extreme values replaced (ratio to lane median ranges 0.76-1.28); a naive 'distance > 3x straight-line' check would have wrongly flagged 12 legitimate 70-mile-floor loads
+    - market_index: 374 missing values filled with the same-day median (0 days needed interpolation)
+    - posted_rate: 337 too low (< 0.6x expected) + 340 too high (> 1.8x) = 677 (1.41%) flagged as corrupted
+    - posted_rate: 0 loads in the ambiguous zone (0.5-0.8x or 1.25-2.0x), so the clean and corrupted clusters are cleanly separated
+    - weight: 145 negative values made positive (sign-flip errors)
+    - weight: 301 loads flagged as capped at 47,500 lbs
+    - weight: 165 missing values filled with the training median of their equipment type
+    - distance: 0 extreme values replaced (ratio to lane median ranges 0.85-1.29); a naive 'distance > 3x straight-line' check would have wrongly flagged 11 legitimate 70-mile-floor loads
+    - market_index: 249 missing values filled with the same-day median (0 days needed interpolation)
+
+  Summary: 48,000 training rows -> 47,323 kept for training, 677 corrupted labels removed (1.41%); 12,000 validation rows cleaned (none removed - every load needs a prediction)
+
+====================================================================================================
+PHASE 2 - FEATURE ENGINEERING
+====================================================================================================
+  37 engineered features in 12 groups (the ablation in Phase 4 decides which optional groups are kept):
+    distance             (4): distance, log_distance, haversine_miles, distance_to_haversine_ratio
+    geography            (12): pickup_lat, pickup_lon, delivery_lat, delivery_lon, delta_lat, delta_lon, bearing_sin, bearing_cos, midpoint_lat, midpoint_lon, pickup_region, delivery_region
+    city_level           (3): pickup_city_level, delivery_city_level, lane_level
+    equipment            (2): is_reefer, is_flatbed
+    weight               (4): weight, weight_was_missing, weight_was_capped, weight_x_distance
+    market               (1): market_index
+    market_interactions  (3): market_x_distance, market_x_reefer, market_x_flatbed
+    quarter_end          (2): is_quarter_end_month, quarter_end_progress
+    time_trend           (1): months_since_start
+    day_of_week          (2): day_of_week, is_weekend
+    holidays             (2): is_holiday_week, days_to_nearest_holiday
+    quote_signal         (1): quote_signal
+  Unseen validation cities get the price level of their 5 nearest training cities: Allentown -1.7%, Charlotte -0.3%, Chicago -1.3%, Jackson +2.0%, Knoxville +0.2%, Laredo +2.5%, Norfolk -1.4%, San Diego +0.3%
+
+====================================================================================================
+PHASE 3 + 4 - TIME-BASED VALIDATION AND MODEL COMPARISON
+====================================================================================================
+  Preparing the 4 rolling folds and the Sep-Oct holdout (cleaning + features fitted on each fold's own training rows) ...
+    Jul              train Jan 01-Jun 30 (28,806 rows, 400 corrupt) -> test Jul 01-Jul 31 (4,912 rows, 65 corrupt, 0 with an unseen city)
+    Aug              train Jan 01-Jul 31 (33,718 rows, 465 corrupt) -> test Aug 01-Aug 31 (4,759 rows, 68 corrupt, 0 with an unseen city)
+    Sep              train Jan 01-Aug 31 (38,477 rows, 533 corrupt) -> test Sep 01-Sep 30 (4,670 rows, 64 corrupt, 0 with an unseen city)
+    Oct              train Jan 01-Sep 30 (43,147 rows, 597 corrupt) -> test Oct 01-Oct 31 (4,853 rows, 80 corrupt, 0 with an unseen city)
+    Holdout Sep-Oct  train Jan 01-Aug 31 (38,477 rows, 533 corrupt) -> test Sep 01-Oct 31 (9,523 rows, 144 corrupt, 0 with an unseen city)
+  4a  Feature screen (LightGBM, log target): which optional feature groups help?
+    C_lightgbm | all features                                  MAE   48.75 +/-  8.03 | MAPE 2.141% | trees 500 |    85s
+    C_lightgbm | without quote_signal                          MAE   44.15 +/-  8.62 | MAPE 1.862% | trees 3000 |    76s
+    C_lightgbm | without city_level                            MAE   49.96 +/-  6.95 | MAPE 2.197% | trees 500 |    77s
+    C_lightgbm | without market_interactions                   MAE   46.11 +/-  7.77 | MAPE 2.005% | trees 500 |   117s
+    C_lightgbm | without quarter_end                           MAE   59.87 +/- 11.33 | MAPE 2.425% | trees 250 |   114s
+    C_lightgbm | without time_trend                            MAE   60.70 +/- 13.80 | MAPE 2.709% | trees 3000 |   117s
+    C_lightgbm | without day_of_week                           MAE   47.40 +/-  6.60 | MAPE 2.070% | trees 500 |   163s
+    C_lightgbm | without holidays                              MAE   47.05 +/-  7.51 | MAPE 2.049% | trees 500 |   156s
+    C_lightgbm | without quote_signal + market_interactions + day_of_week + holidays MAE   36.20 +/-  5.38 | MAPE 1.565% | trees 2500 |    91s
+      -> best feature set: 'C_lightgbm | without quote_signal + market_interactions + day_of_week + holidays' (dropped: market_interactions, day_of_week, holidays, quote_signal)
+  4b  Model comparison (rolling folds + Sep-Oct holdout)
+    A_baseline                                                 MAE   94.56 +/- 22.69 | MAPE 4.124% | holdout MAE  119.54 |     1s
+    B_ridge                                                    MAE   36.65 +/-  1.25 | MAPE 1.575% | holdout MAE   37.75 |     2s
+    C_lightgbm                                                 MAE   36.20 +/-  5.38 | MAPE 1.565% | holdout MAE   44.61 | trees 2500 |    15s
+    D_lightgbm_huber                                           MAE   38.20 +/-  4.60 | MAPE 1.676% | holdout MAE   46.60 | trees 1750 |    98s
+    E_catboost                                                 MAE   36.40 +/-  6.64 | MAPE 1.574% | holdout MAE   44.25 | trees 1500 |   514s
+    G_ridge_then_lightgbm                                      MAE   32.17 +/-  2.00 | MAPE 1.368% | holdout MAE   32.78 | trees 1250 |    92s
+    F_ensemble_top2                                            MAE   32.83 +/-  3.97 | MAPE 1.406% | holdout MAE   37.02 |     0s
+    F_ensemble_top3                                            MAE   33.21 +/-  5.05 | MAPE 1.425% | holdout MAE   38.66 |     0s
+  4c  Ablations on the best single model (G_ridge_then_lightgbm)
+    G_ridge_then_lightgbm | with quote_signal                  MAE   33.30 +/-  3.99 | MAPE 1.416% | trees 250 |    87s
+    G_ridge_then_lightgbm | without city_level                 MAE   31.96 +/-  2.17 | MAPE 1.366% | trees 1750 |    76s
+    G_ridge_then_lightgbm | target=per_mile                    MAE   33.46 +/-  1.03 | MAPE 1.413% | trees 1250 |    92s
+    G_ridge_then_lightgbm | target=raw                         MAE   43.53 +/-  3.19 | MAPE 2.577% | trees 3000 |    74s
+  4d  Light tuning (on G_ridge_then_lightgbm | without city_level)
+    G_ridge_then_lightgbm | without city_level | num_leaves=15, min_child_samples=20 MAE   31.88 +/-  2.24 | MAPE 1.363% | trees 3000 |    51s
+    G_ridge_then_lightgbm | without city_level | num_leaves=63, min_child_samples=50 MAE   32.14 +/-  2.17 | MAPE 1.373% | trees 1000 |   104s
+    G_ridge_then_lightgbm | without city_level | num_leaves=127, min_child_samples=50 MAE   32.33 +/-  2.16 | MAPE 1.382% | trees 500 |   190s
+    G_ridge_then_lightgbm | without city_level | max_bin=1023  MAE   31.86 +/-  2.20 | MAPE 1.362% | trees 1750 |   110s
+    F_ensemble_top2_tuned                                      MAE   32.75 +/-  4.07 | MAPE 1.402% | holdout MAE   37.11 |    14s
+    F_ensemble_top3_tuned                                      MAE   33.16 +/-  5.11 | MAPE 1.421% | holdout MAE   38.75 |     0s
+
+  Winner: G_ridge_then_lightgbm | without city_level | max_bin=1023  (mean MAE 31.86 over the rolling folds, MAPE 1.362%)
+  Extra checks on the winner ...
+  Phase 3+4 finished in 42.8 minutes
+
+  Why it won:
+    - lowest mean MAE over the 4 rolling time folds (Jul, Aug, Sep, Oct): $31.86 (std $2.20), MAPE 1.362%
+    - 66% lower error than the simple baseline ($94.56)
+    - Sep-Oct holdout (trained on Jan-Aug only): MAE $32.73, MAPE 1.388%, R2 0.9988, bias -0.44%
+    - scored on ALL rows (incl. corrupted labels) the same holdout MAE is $88.88 - the corrupted labels add error no model can remove
+
+  Random 80/20 split (for comparison only): MAE $30.28, MAPE 1.274% - looks 8% better than the honest time-based holdout, because random test loads share days (and the daily price level) with training loads. Forecasting Nov-Dec never offers that.
+
+  Unseen-city check (Tulsa, Washington, San Antonio, Memphis, Toledo, Hartford, Bakersfield, New York removed from training): 2,477 Sep-Oct loads touch them
+    MAPE on those loads 1.572% (vs 1.364% when the cities were seen in training); other loads 1.398%
+
+  Permutation importance on the Sep-Oct holdout (rise in MAE when a feature group is shuffled):
+    distance             +$  1524.64  ( +4657.8%)
+    equipment            +$   117.87  (  +360.1%)
+    geography            +$    41.93  (  +128.1%)
+    weight               +$    40.68  (  +124.3%)
+    quarter_end          +$    14.69  (   +44.9%)
+    market               +$    12.75  (   +39.0%)
+    time_trend           +$     2.57  (    +7.9%)
+
+  Saved outputs\model_comparison.csv and outputs\cv_fold_details.csv
+
+====================================================================================================
+PHASE 5 - FINAL TRAINING + VALIDATION PREDICTIONS
+====================================================================================================
+    - trained 'G_ridge_then_lightgbm | without city_level | max_bin=1023' on all Jan-Oct data: 47,323 clean rows (of 48,000; corrupt labels are only used by Huber-loss models)
+    - number of trees, scaled up from the CV choice for the larger training set: G_ridge_then_lightgbm | without city_level | max_bin=1023: 2,330 trees
+    - saved the model bundle to outputs\final_model.joblib
+    - checks passed: 12,000 rows, ids TE-000001..TE-012000, no missing values, all > 0
+    - saved validation_predictions.csv (project root)
+    - predicted rate: min $188, median $2,076, mean $2,395, max $7,097
+    - average $/mile: training Jan-Oct $2.187, October $2.207, predicted Nov $2.197, Dec $2.248
+    - market_index: training mean 1.083 vs validation 0.927; with an elasticity of 0.14 that alone moves prices by only -2.2% vs the training average. The calendar level carried over from October (+ the December quarter-end ramp) pushes the other way, so Nov/Dec $/mile should be compared with October rather than with the Jan-Oct average.
+
+====================================================================================================
+PHASE 6 - DECEMBER CHART PREDICTIONS
+====================================================================================================
+    - checks passed: 31 days, original 7 columns and values unchanged, all predictions > 0
+    - saved outputs\december_chart_predictions.csv (original december-chart-inputs.csv left untouched)
+    - inputs filled: lat/lon from training; market_index = validation daily median (0.829-1.045); quote_signal = 1.973
+    - predicted rate: $834 to $878 (mean $855); first-week average $845 -> last-week average $868 (+2.7%)
+    - by weekday: highest Wednesday ($865), lowest Monday ($847) - follows the market_index weekly cycle
+
+====================================================================================================
+PHASE 7 - RUN THE PROVIDED SCORER (score.py)
+====================================================================================================
+  $ python score.py --predictions validation_predictions.csv --december-predictions outputs\december_chart_predictions.csv
+  Validated 12,000 final predictions.
+  Validated 31 fixed December predictions.
+  Created chart: scorer_results\candidate_december.png
+  Final validation metrics are calculated by Spotter after submission.
+  Confirmed: scorer_results\candidate_december.png exists
+
+====================================================================================================
+DONE in 43.4 minutes - summary saved to outputs\run_summary.json
+====================================================================================================

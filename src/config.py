@@ -182,11 +182,17 @@ LIGHTGBM_TUNING_GRID = [
 TIE_TOLERANCE = 0.002
 
 # `python run_pipeline.py --fast` skips the feature ablation, target options,
-# tuning and CatBoost, and uses these choices instead. The feature groups below
-# come from the earlier exploratory experiments (quote_signal, market
-# interactions, day_of_week and holidays all raised the time-based CV error).
-# After a FULL run, copy its choices here so --fast reproduces it.
+# tuning and CatBoost, and uses these choices instead. They are what the last
+# FULL run selected (outputs/model_comparison.csv), so --fast rebuilds the same
+# final model:
+#   * 4a feature screen dropped quote_signal, market_interactions, day_of_week, holidays;
+#   * 4c ablation: model G was (slightly) better WITHOUT the city_level target encoding;
+#   * 4d tuning: max_bin=1023 was best (a gain of only ~0.3%, i.e. within noise).
 FAST_MODE_FEATURE_GROUPS = ["distance", "geography", "city_level", "equipment", "weight",
                             "market", "quarter_end", "time_trend"]
-# e.g. {"base": "G_ridge_then_lightgbm", "target_kind": "log", "params": {"num_leaves": 63}}
-FAST_MODE_TUNING = None
+FAST_MODE_TUNING = {
+    "base": "G_ridge_then_lightgbm",
+    "feature_groups": ["distance", "geography", "equipment", "weight", "market", "quarter_end", "time_trend"],
+    "target_kind": "log",
+    "params": {"max_bin": 1023},
+}
