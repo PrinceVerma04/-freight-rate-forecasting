@@ -1,0 +1,11 @@
+# Python / virtual environment
+.venv/
+__pycache__/
+*.pyc
+
+# Tool caches
+catboost_info/
+.ipynb_checkpoints/
+.vscode/
+.idea/
+"`n# Assessment instructions (not part of the solution)`nfreight-rate-ml-assessment.pdf"

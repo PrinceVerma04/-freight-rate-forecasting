@@ -1,0 +1,10 @@
+# --- Scorer requirements (provided with the assessment - do not change) ---
+matplotlib>=3.8,<4
+numpy>=1.26,<3
+pandas>=2.0,<3
+
+# --- Modelling requirements (added for this solution) ---
+scikit-learn>=1.5,<2
+lightgbm>=4.3,<5
+catboost>=1.2.7,<2
+joblib>=1.3

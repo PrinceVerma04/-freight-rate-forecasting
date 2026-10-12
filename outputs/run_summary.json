@@ -1,0 +1,242 @@
+{
+  "mode": "fast",
+  "runtime_minutes": 8.3,
+  "eda_facts": {
+    "unseen_cities": [
+      "Allentown",
+      "Charlotte",
+      "Chicago",
+      "Jackson",
+      "Knoxville",
+      "Laredo",
+      "Norfolk",
+      "San Diego"
+    ],
+    "train_weight": {
+      "negative": 292,
+      "capped": 1204,
+      "floor": 32,
+      "missing": 300
+    },
+    "validation_weight": {
+      "negative": 145,
+      "capped": 301,
+      "floor": 7,
+      "missing": 165
+    },
+    "market_mean_train": 1.0833867156595136,
+    "market_mean_validation": 0.9269130491022041,
+    "market_elasticity": 0.13999542701311582,
+    "quarter_end_ramp_pct": 3.6599983757326924,
+    "level_drift_pct": 5.567995156463777
+  },
+  "winner": "F_ensemble_top2",
+  "winner_description": "average of C_lightgbm + B_ridge",
+  "winner_feature_groups": [],
+  "dropped_feature_groups": [
+    "market_interactions",
+    "day_of_week",
+    "holidays",
+    "quote_signal"
+  ],
+  "final_model": "ModelSpec(name='F_ensemble_top2', model_type='ensemble', feature_groups=[], target_kind='log', params={}, train_on_corrupt_rows=False, members=[ModelSpec(name='C_lightgbm', model_type='lightgbm', feature_groups=['distance', 'geography', 'city_level', 'equipment', 'weight', 'market', 'quarter_end', 'time_trend'], target_kind='log', params={}, train_on_corrupt_rows=False, members=[], n_rounds=3329, description='LightGBM on log(price), L2 loss'), ModelSpec(name='B_ridge', model_type='ridge', feature_groups=['distance', 'geography', 'city_level', 'equipment', 'weight', 'market', 'quarter_end', 'time_trend'], target_kind='log', params={}, train_on_corrupt_rows=False, members=[], n_rounds=None, description='ridge regression on log(price)')], n_rounds=None, description='average of C_lightgbm + B_ridge')",
+  "cv_mean": {
+    "MAE": 33.85017235775436,
+    "RMSE": 48.60180056889052,
+    "MAPE": 1.4595765816553787,
+    "MedAPE": 1.2491896442527208,
+    "R2": 0.9987140054627681,
+    "Bias_%": -0.21369578935502842
+  },
+  "cv_std_MAE": 3.363955960274868,
+  "cv_folds": [
+    {
+      "fold": "Jul",
+      "clean_MAE": 32.764793771103626,
+      "clean_RMSE": 47.17898204835219,
+      "clean_MAPE": 1.390436311962131,
+      "clean_MedAPE": 1.1704370610382766,
+      "clean_R2": 0.998795019433601,
+      "clean_Bias_%": 0.3217879929852119,
+      "all_MAE": 87.0114501121209,
+      "all_RMSE": 624.8542731352956,
+      "all_MAPE": 3.528619364898053,
+      "all_MedAPE": 1.1873349265321218,
+      "all_R2": 0.8275728542964089,
+      "all_Bias_%": -1.096698839086785
+    },
+    {
+      "fold": "Aug",
+      "clean_MAE": 30.524611389214503,
+      "clean_RMSE": 44.278976688252065,
+      "clean_MAPE": 1.3362345710119827,
+      "clean_MedAPE": 1.1327392397122682,
+      "clean_R2": 0.9988856213123017,
+      "clean_Bias_%": 0.2766157400857283,
+      "all_MAE": 80.83000903468152,
+      "all_RMSE": 613.4131023234315,
+      "all_MAPE": 3.790305942829918,
+      "all_MedAPE": 1.1480528710932167,
+      "all_R2": 0.827008289373412,
+      "all_Bias_%": -0.935332873657091
+    },
+    {
+      "fold": "Sep",
+      "clean_MAE": 32.64249091550406,
+      "clean_RMSE": 47.40379343742368,
+      "clean_MAPE": 1.4068089603301366,
+      "clean_MedAPE": 1.1887663567697868,
+      "clean_R2": 0.9988253073197227,
+      "clean_Bias_%": -0.23200110332032287,
+      "all_MAE": 84.054092316427,
+      "all_RMSE": 610.8499101767105,
+      "all_MAPE": 3.467229973885124,
+      "all_MedAPE": 1.204022504345197,
+      "all_R2": 0.8391999238519484,
+      "all_Bias_%": -1.5799344683441685
+    },
+    {
+      "fold": "Oct",
+      "clean_MAE": 39.46879335519526,
+      "clean_RMSE": 55.54545010153413,
+      "clean_MAPE": 1.7048264833172642,
+      "clean_MedAPE": 1.5048159194905513,
+      "clean_R2": 0.9983500737854467,
+      "clean_Bias_%": -1.221185787170731,
+      "all_MAE": 100.03487418525191,
+      "all_RMSE": 647.4866186427638,
+      "all_MAPE": 4.6590809115270675,
+      "all_MedAPE": 1.5329247076965566,
+      "all_R2": 0.8205685418580372,
+      "all_Bias_%": -2.663465821170674
+    }
+  ],
+  "holdout": {
+    "clean": {
+      "MAE": 37.90411414813959,
+      "RMSE": 54.13224674873407,
+      "MAPE": 1.6403992452461218,
+      "MedAPE": 1.4101337527154292,
+      "R2": 0.9984506350793712,
+      "Bias_%": -0.8699751833301073
+    },
+    "all": {
+      "MAE": 93.95733481674569,
+      "RMSE": 630.2400304051589,
+      "MAPE": 4.150456831000952,
+      "MedAPE": 1.4397560430065317,
+      "R2": 0.8294416082328959,
+      "Bias_%": -2.2649311823713436
+    }
+  },
+  "random_split": {
+    "clean": {
+      "MAE": 31.68520198094798,
+      "RMSE": 46.592070264617114,
+      "MAPE": 1.3442168323240462,
+      "MedAPE": 1.1320657306012436,
+      "R2": 0.9988238372154246,
+      "Bias_%": 0.01944254540082735
+    },
+    "all": {
+      "MAE": 76.6528704724969,
+      "RMSE": 525.1297816872391,
+      "MAPE": 3.6037779613253065,
+      "MedAPE": 1.1471932524843929,
+      "R2": 0.8710572368746352,
+      "Bias_%": -1.0450638809020751
+    }
+  },
+  "unseen_cities": {
+    "held_out_cities": [
+      "Tulsa",
+      "Washington",
+      "San Antonio",
+      "Memphis",
+      "Toledo",
+      "Hartford",
+      "Bakersfield",
+      "New York"
+    ],
+    "n_loads_touching": 2477,
+    "unseen": {
+      "MAE": 43.31541644499912,
+      "RMSE": 62.99994802608419,
+      "MAPE": 1.794034048612139,
+      "MedAPE": 1.5334567132074772,
+      "R2": 0.9980002731853699,
+      "Bias_%": -0.9434612547942534
+    },
+    "same_loads_when_seen": {
+      "MAE": 38.29132626274031,
+      "RMSE": 54.67733655337632,
+      "MAPE": 1.5874327658877667,
+      "MedAPE": 1.347236646264396,
+      "R2": 0.9984937224965243,
+      "Bias_%": -0.8578705572516943
+    },
+    "other_loads": {
+      "MAE": 38.074154245123495,
+      "RMSE": 54.482096352894246,
+      "MAPE": 1.6713151119928653,
+      "MedAPE": 1.4508974406480695,
+      "R2": 0.9984001059161304,
+      "Bias_%": -0.8876612326301325
+    }
+  },
+  "predictions": {
+    "prediction_min": 202.09190138462532,
+    "prediction_median": 2068.6099825562374,
+    "prediction_mean": 2387.028686344917,
+    "prediction_max": 6993.139316263612,
+    "rpm_train_mean": 2.186657423678918,
+    "rpm_october_mean": 2.207489845618086,
+    "rpm_predicted_mean": 2.214390632439478,
+    "rpm_predicted_by_month": {
+      "2025-11": 2.1939619455856616,
+      "2025-12": 2.233732263925343
+    },
+    "market_train_mean": 1.083420181835471,
+    "market_validation_mean": 0.9268856625
+  },
+  "december": {
+    "min": 825.6822231840547,
+    "max": 869.6449852145495,
+    "mean": 847.7163615616244,
+    "first": 825.6822231840547,
+    "last": 869.6449852145495,
+    "values": [
+      825.68,
+      835.05,
+      844.92,
+      848.77,
+      844.87,
+      836.18,
+      829.63,
+      831.87,
+      840.79,
+      850.06,
+      852.15,
+      849.37,
+      841.1,
+      836.74,
+      838.73,
+      845.14,
+      854.12,
+      857.92,
+      854.65,
+      846.71,
+      842.29,
+      844.18,
+      851.13,
+      861.19,
+      866.57,
+      861.46,
+      854.15,
+      850.66,
+      852.72,
+      860.76,
+      869.64
+    ]
+  }
+}
